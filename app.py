@@ -28,14 +28,14 @@ def inference(model_inputs:dict) -> dict:
     # Parse out your arguments
     product_id = model_inputs.get("productId")
     product_url = model_inputs.get("productUrl")
-    access = model_inputs.get("access_key") 
-    secret = model_inputs.get("secret_key")
+    # access = model_inputs.get("access_key") 
+    # secret = model_inputs.get("secret_key")
 
     preprocessed_img_urls = main_preprocess(
         product_id, 
         product_url,
-        access, 
-        secret
+        os.environ["ACCESS"], 
+        os.environ["SECRET"]
         )
 
     return {'generatedImages': preprocessed_img_urls}
@@ -66,9 +66,31 @@ def main_preprocess(product_id, product_url, access, secret):
     [blurred_image_name, preprocessed_image_name],
     [blurred_image, preprocessed_image],
     s3_client)
-  img_urls = get_urls(s3_client, keys)
+
+  if os.environ["ENV"]=="devo": 
+    ## for devo (for testing purposes)
+    img_urls = get_urls(s3_client, keys)
+  else:
+    ## for prod
+    img_urls = []
+    # trigger BE API
+    send_info_back_to_BE(
+        product_id, 
+        preprocessed_image_name,
+        blurred_image_name
+    )    
 
   return img_urls
+
+def send_info_back_to_BE(product_id, preprocessed_image_path, cropped_image_path):
+    body = {
+    "productId": product_id,
+    "preprocessedImageKey": preprocessed_image_path,
+    "CroppedImageKey": cropped_image_path
+    }
+    endpoint = ""
+    requests.post()
+    return None
 
 def load_image_from_url(url):
     # send a GET request to the URL and read the image contents into memory
