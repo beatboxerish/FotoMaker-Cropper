@@ -55,8 +55,8 @@ def main_preprocess(product_id, product_url, access, secret):
   blurred_image = get_blurred_image(cropped_image)
   preprocessed_image = get_preprocessed_image(blurred_image)
 
-  blurred_image_name = "Cropped/" + file_name + ".png"
-  preprocessed_image_name = "Preprocessed/" + file_name + ".png"
+  blurred_image_name = "Cropped/" + product_id + ".png"
+  preprocessed_image_name = "Preprocessed/" + product_id + ".png"
 
   ### getting s3 client
   s3_client = create_s3_client(access, secret)

@@ -23,8 +23,8 @@ def handler(event):
     print("Got Event:", event)
 
     model_inputs = event["input"]
-    model_inputs["access_key"] = event["s3Config"]["accessId"]
-    model_inputs["secret_key"] = event["s3Config"]["accessSecret"]
+    # model_inputs["access_key"] = event["s3Config"]["accessId"]
+    # model_inputs["secret_key"] = event["s3Config"]["accessSecret"]
 
     response = inference(model_inputs)
 
