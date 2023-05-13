@@ -10,15 +10,6 @@ import requests
 # Load your model to GPU as a global variable here using the variable name "model"
 def init():
     global model
-    # Create an object with default values
-    # model = Generate(
-    #     model='stable-diffusion-1.5',
-    #     conf='/workspace/configs/models.yaml.example',
-    #     sampler_name ='ddim'
-    #     )
-
-    # do the slow model initialization
-    # model.load_model()
 
 # Inference is ran for every server call
 # Reference your preloaded global model variable here.
@@ -28,9 +19,7 @@ def inference(model_inputs:dict) -> dict:
     # Parse out your arguments
     product_id = model_inputs.get("productId")
     product_url = model_inputs.get("productUrl")
-    # access = model_inputs.get("access_key") 
-    # secret = model_inputs.get("secret_key")
-
+    
     preprocessed_img_urls = main_preprocess(
         product_id, 
         product_url,
@@ -88,8 +77,9 @@ def send_info_back_to_BE(product_id, preprocessed_image_path, cropped_image_path
     "preprocessedImageKey": preprocessed_image_path,
     "CroppedImageKey": cropped_image_path
     }
-    endpoint = ""
-    requests.post()
+    endpoint = os.environ["ENDPOINT"] + "/product" + product_id + "/crop-product"
+    headers = {'content-type': 'application/json'}
+    requests.post(endpoint, headers=headers, json=body)
     return None
 
 def load_image_from_url(url):
