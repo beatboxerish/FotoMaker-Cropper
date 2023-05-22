@@ -44,8 +44,10 @@ def main_preprocess(product_id, product_url, access, secret):
   blurred_image = get_blurred_image(cropped_image)
   preprocessed_image = get_preprocessed_image(blurred_image)
 
-  blurred_image_name = "Cropped/" + product_id + ".png"
-  preprocessed_image_name = "Preprocessed/" + product_id + ".png"
+  preprocessed_image_file_name = product_id + ".png"
+
+  blurred_image_name = "cropped-uhd-products/" + preprocessed_image_file_name
+  preprocessed_image_name = "cropped-products/" + preprocessed_image_file_name
 
   ### getting s3 client
   s3_client = create_s3_client(access, secret)
@@ -65,21 +67,21 @@ def main_preprocess(product_id, product_url, access, secret):
     # trigger BE API
     send_info_back_to_BE(
         product_id, 
-        preprocessed_image_name,
-        blurred_image_name
-    )    
+        preprocessed_image_file_name,
+        preprocessed_image_file_name
+    )
 
   return img_urls
 
 def send_info_back_to_BE(product_id, preprocessed_image_path, cropped_image_path):
     body = {
     "productId": product_id,
-    "preprocessedImageKey": preprocessed_image_path,
-    "CroppedImageKey": cropped_image_path
+    "croppedProductKey": preprocessed_image_path,
+    "croppedUhdProductKey": cropped_image_path
     }
-    endpoint = os.environ["ENDPOINT"] + "/product" + product_id + "/crop-product"
+    endpoint = os.environ["ENDPOINT"] + "product/" + product_id + "/crop-product"
     headers = {'content-type': 'application/json'}
-    requests.post(endpoint, headers=headers, json=body)
+    requests.put(endpoint, headers=headers, json=body)
     return None
 
 def load_image_from_url(url):
@@ -147,7 +149,7 @@ def load_image_s3(img_name, s3_client):
     image = Image.open(save_location)
     return image
 
-def download_file(client, path, bucket_name='fotomaker'):
+def download_file(client, path, bucket_name='fotomaker-engineering'):
     save_location = "/tmp/" + path.split("/")[-1]
     client.download_file(bucket_name, path, save_location)
     return save_location
@@ -177,7 +179,7 @@ def save_response_s3(client, file, key):
     file.save(in_mem_file, format="PNG")
     in_mem_file.seek(0)
     
-    client.upload_fileobj(in_mem_file, 'fotomaker', key)
+    client.upload_fileobj(in_mem_file, 'fotomaker-engineering', key)
     return None
 
 def get_urls(s3_client, keys):
@@ -191,6 +193,6 @@ def create_presigned_url(client, key, expiration=60*5):
     # Generate a presigned URL for the S3 object
     response = client.generate_presigned_url(
         'get_object',
-        Params={'Bucket': 'fotomaker','Key': key},
+        Params={'Bucket': 'fotomaker-engineering','Key': key},
         ExpiresIn=expiration)
     return response
