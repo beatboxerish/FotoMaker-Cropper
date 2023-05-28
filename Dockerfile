@@ -12,6 +12,8 @@ RUN pip install pip --upgrade && pip install -r requirements.txt
 ADD app.py ./
 ADD initial_run.py ./
 ADD handler.py ./
+ADD s3_utils.py ./
+ADD utils.py ./
 
 # RUN python initial_run.py
 ADD isnet-general-use.onnx /root/.u2net/
