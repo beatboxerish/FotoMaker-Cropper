@@ -1,10 +1,10 @@
 from PIL import Image, ImageFilter, ImageEnhance, ImageOps
-from rembg import remove, new_session
-import boto3
 import json
 import os
-from io import BytesIO
 import requests
+
+from s3_utils import *
+from utils import *
 
 # Init is ran on server startup
 # Load your model to GPU as a global variable here using the variable name "model"
@@ -17,9 +17,10 @@ def inference(model_inputs:dict) -> dict:
     global model
 
     # Parse out your arguments
+    model_inputs = model_inputs["input"]
     product_id = model_inputs.get("productId")
     product_url = model_inputs.get("productUrl")
-    
+
     preprocessed_img_urls = main_preprocess(
         product_id, 
         product_url,
@@ -31,7 +32,7 @@ def inference(model_inputs:dict) -> dict:
 
 ###---###---###---###---###---###---###---###---###---###---###---###---###---###---###---###---###---###---
 
-# defining all other functions
+# defining main function
 
 def main_preprocess(product_id, product_url, access, secret):
   # creating paths out of the name
@@ -58,141 +59,13 @@ def main_preprocess(product_id, product_url, access, secret):
     [blurred_image, preprocessed_image],
     s3_client)
 
-  if os.environ["ENV"]=="devo": 
-    ## for devo (for testing purposes)
-    img_urls = get_urls(s3_client, keys)
-  else:
-    ## for prod
-    img_urls = []
+  if os.environ["ENV"]=="prod": 
     # trigger BE API
     send_info_back_to_BE(
         product_id, 
         preprocessed_image_file_name,
         preprocessed_image_file_name
     )
-
+    
+  img_urls = get_urls(s3_client, keys)
   return img_urls
-
-def send_info_back_to_BE(product_id, preprocessed_image_path, cropped_image_path):
-    body = {
-    "productId": product_id,
-    "croppedProductKey": preprocessed_image_path,
-    "croppedUhdProductKey": cropped_image_path
-    }
-    endpoint = os.environ["ENDPOINT"] + "product/" + product_id + "/crop-product"
-    headers = {'content-type': 'application/json'}
-    requests.put(endpoint, headers=headers, json=body)
-    return None
-
-def load_image_from_url(url):
-    # send a GET request to the URL and read the image contents into memory
-    response = requests.get(url)
-    image_bytes = BytesIO(response.content)
-    pil_image = Image.open(image_bytes)
-    return pil_image
-
-def get_cropped_image(pil_image):
-    n_s = new_session("isnet-general-use")
-    output = remove(pil_image, session=n_s, alpha_matting=True)
-    return output
-
-def get_blurred_image(pil_image):
-    
-    # create outline and blurred outline mask
-    outlines = pil_image.getchannel("A").filter(ImageFilter.FIND_EDGES)
-    blurred_outlines = outlines.filter(ImageFilter.BLUR)
-    blurred_outlines = blurred_outlines.point(lambda x: x+100 if x>10 else x)
-
-    # create blurred image
-    pil_image_blurred = pil_image.copy()
-    pil_image_blurred = pil_image_blurred.filter(ImageFilter.GaussianBlur(1))
-    
-    # create final blurred image
-    output_blurred_edges = Image.composite(pil_image_blurred, pil_image, blurred_outlines)
-
-    return output_blurred_edges
-
-def get_preprocessed_image(pil_image, buffer=0):
-    cropped_image = pil_image
-
-    x1, y1, x2, y2 = cropped_image.getbbox()
-    w, h = x2 - x1, y2 - y1
-
-    box_cropped_image = cropped_image.crop((x1-buffer, y1-buffer, x2+buffer, y2+buffer))
-    resize_cropped_img = ImageOps.contain(box_cropped_image, (512, 512))
-    width_size, height_size = resize_cropped_img.size[0], resize_cropped_img.size[1]
-
-    new_img = ImageOps.expand(resize_cropped_img,
-                              border = ((512-resize_cropped_img.size[0])//2, (512-resize_cropped_img.size[1])//2),
-                              fill = (0, 0, 0, 0))
-
-    if new_img.size[0] != 512:
-        new_img = ImageOps.expand(new_img, (1, 0, 0, 0))
-    if new_img.size[1] != 512:
-        new_img = ImageOps.expand(new_img, (0, 1, 0, 0))
-
-    return new_img
-
-# s3 utils
-
-def create_s3_client(access_key, secret_key):
-  s3_client = boto3.client(
-        's3',
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key, 
-        region_name="ap-south-1"
-    )
-  return s3_client
-
-def load_image_s3(img_name, s3_client):
-    save_location = download_file(s3_client, img_name)
-    image = Image.open(save_location)
-    return image
-
-def download_file(client, path, bucket_name='fotomaker-engineering'):
-    save_location = "/tmp/" + path.split("/")[-1]
-    client.download_file(bucket_name, path, save_location)
-    return save_location
-
-# def load_image_s3(img_name, s3_client):
-#     obj = s3_client.get_object(
-#         Bucket='fotomaker', 
-#         Key=img_name
-#         )
-#     body = obj['Body']
-#     img = body.read()
-#     image = Image.open(BytesIO(img))
-#     return image
-
-def save_images(img_names, imgs, s3_client):
-    for idx, img in enumerate(imgs):
-        key = img_names[idx]
-        save_response_s3(
-            s3_client,
-            img,
-            key
-            )
-    return img_names
-
-def save_response_s3(client, file, key):
-    in_mem_file = BytesIO()
-    file.save(in_mem_file, format="PNG")
-    in_mem_file.seek(0)
-    
-    client.upload_fileobj(in_mem_file, 'fotomaker-engineering', key)
-    return None
-
-def get_urls(s3_client, keys):
-    img_urls = []
-    for key in keys:
-        url = create_presigned_url(s3_client, key)
-        img_urls.append(url)
-    return img_urls
-
-def create_presigned_url(client, key, expiration=60*5):
-    # Generate a presigned URL for the S3 object
-    response = client.generate_presigned_url(
-        'get_object',
-        Params={'Bucket': 'fotomaker-engineering','Key': key},
-        ExpiresIn=expiration)
-    return response
