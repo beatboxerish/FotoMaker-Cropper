@@ -3,30 +3,27 @@ import os
 from io import BytesIO
 from PIL import Image, ImageFilter, ImageOps
 from rembg import remove, new_session
+from handlers import validate_input_image, report_error
 
-
-def send_info_back_to_BE(product_id, preprocessed_image_path, cropped_image_path):
-    body = {
-    "productId": product_id,
-    "croppedProductKey": preprocessed_image_path,
-    "croppedUhdProductKey": cropped_image_path
-    }
-    endpoint = os.environ["ENDPOINT"] + "product/" + product_id + "/crop-product"
-    headers = {'content-type': 'application/json'}
-    requests.put(endpoint, headers=headers, json=body)
-    return None
-
+@validate_input_image
 def load_image_from_url(url):
     response = requests.get(url)
     image_bytes = BytesIO(response.content)
     pil_image = Image.open(image_bytes)
     return pil_image
 
+@report_error(10)
 def get_cropped_image(pil_image):
-    n_s = new_session("isnet-general-use")
-    output = remove(pil_image, session=n_s, alpha_matting=True)
+    output = None
+    if pil_image.mode == 'RGBA':
+        if len(set(pil_image.getchannel("A").getextrema()))>1:
+            output = pil_image
+    if not output:
+        n_s = new_session("isnet-general-use")
+        output = remove(pil_image, session=n_s, alpha_matting=True)
     return output
 
+@report_error(10)
 def get_blurred_image(pil_image):
     
     # create outline and blurred outline mask
@@ -43,6 +40,7 @@ def get_blurred_image(pil_image):
 
     return output_blurred_edges
 
+@report_error(10)
 def get_preprocessed_image(pil_image, buffer=0):
     cropped_image = pil_image
 
@@ -63,3 +61,16 @@ def get_preprocessed_image(pil_image, buffer=0):
         new_img = ImageOps.expand(new_img, (0, 1, 0, 0))
 
     return new_img
+
+
+@report_error(10)
+def send_info_back_to_BE(product_id, preprocessed_image_path, cropped_image_path):
+    body = {
+    "productId": product_id,
+    "croppedProductKey": preprocessed_image_path,
+    "croppedUhdProductKey": cropped_image_path
+    }
+    endpoint = os.environ["ENDPOINT"] + "product/" + product_id + "/crop-product"
+    headers = {'content-type': 'application/json'}
+    requests.put(endpoint, headers=headers, json=body)
+    return None

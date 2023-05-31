@@ -1,13 +1,15 @@
 import boto3
 from PIL import Image
 from io import BytesIO
+from handlers import validate_s3_client, report_error
 
 
+@validate_s3_client
 def create_s3_client(access_key, secret_key):
   s3_client = boto3.client(
         's3',
         aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key, 
+        aws_secret_access_key=secret_key,
         region_name="ap-south-1"
     )
   return s3_client
@@ -21,16 +23,6 @@ def download_file(client, path, bucket_name='fotomaker-engineering'):
     save_location = "/tmp/" + path.split("/")[-1]
     client.download_file(bucket_name, path, save_location)
     return save_location
-
-# def load_image_s3(img_name, s3_client):
-#     obj = s3_client.get_object(
-#         Bucket='fotomaker', 
-#         Key=img_name
-#         )
-#     body = obj['Body']
-#     img = body.read()
-#     image = Image.open(BytesIO(img))
-#     return image
 
 def save_images(img_names, imgs, s3_client):
     for idx, img in enumerate(imgs):
