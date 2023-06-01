@@ -4,6 +4,7 @@ import requests
 import time
 from app import init, inference
 
+
 def check_api_availability(host):
     while True:
         try:
@@ -14,6 +15,7 @@ def check_api_availability(host):
         except Exception as e:
             print('something went wrong')
         time.sleep(200/1000)
+
 
 def handler(event):
     '''
